@@ -32,6 +32,33 @@ EOF
   }
 }
 
+resource "aws_s3_bucket" "prod_deployment_bucket" {
+  bucket = "${var.pipeline_name}-${data.aws_caller_identity.current.account_id}-prod"
+  acl = "public-read"
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadForGetBucketObjects",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "*"
+      },
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::${var.pipeline_name}-${data.aws_caller_identity.current.account_id}-prod/*"
+    }
+  ]
+}
+EOF
+
+  website {
+    index_document = "index.html"
+    error_document = "index.html"
+  }
+}
+
 # CodePipeLine Resources
 resource "aws_s3_bucket" "build_artifact_bucket" {
   bucket = "${var.pipeline_name}-${data.aws_caller_identity.current.account_id}-artifact-bucket"
@@ -74,8 +101,8 @@ resource "aws_iam_role_policy" "attach_codepipeline_policy" {
       "Effect": "Allow",
       "Resource": [
         "${aws_s3_bucket.build_artifact_bucket.arn}/*",
-        "${aws_s3_bucket.deployment_bucket.arn}",
-        "${aws_s3_bucket.deployment_bucket.arn}/*"
+        "${aws_s3_bucket.deployment_bucket.arn}/*",
+        "${aws_s3_bucket.prod_deployment_bucket.arn}/*"
       ]
     },
     {
@@ -163,8 +190,7 @@ resource "aws_iam_role_policy" "codebuild_policy" {
       ],
       "Effect": "Allow",
       "Resource": [
-        "${aws_s3_bucket.build_artifact_bucket.arn}/*",
-        "${aws_s3_bucket.deployment_bucket.arn}/*"
+        "${aws_s3_bucket.build_artifact_bucket.arn}/*"
       ]
     },
     {
@@ -280,6 +306,36 @@ resource "aws_codepipeline" "codepipeline" {
 
       configuration {
         BucketName = "${aws_s3_bucket.deployment_bucket.id}"
+        Extract = "true"
+      }
+    }
+  }
+
+  stage {
+    name = "Approvals"
+
+    action {
+      name = "ProductionGate"
+      category = "Approval"
+      owner = "AWS"
+      provider = "Manual"
+      version = "1"
+    }
+  }
+
+  stage {
+    name = "Production"
+
+    action {
+      name = "DeployApplication"
+      category = "Deploy"
+      owner = "AWS"
+      provider = "S3"
+      input_artifacts = ["built"]
+      version = "1"
+
+      configuration {
+        BucketName = "${aws_s3_bucket.prod_deployment_bucket.id}"
         Extract = "true"
       }
     }
