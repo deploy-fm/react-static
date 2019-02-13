@@ -9,6 +9,23 @@ resource "aws_s3_bucket" "deployment_bucket" {
   bucket = "${var.pipeline_name}-${data.aws_caller_identity.current.account_id}-deploy"
   acl = "public-read"
 
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadForGetBucketObjects",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "*"
+      },
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::${var.pipeline_name}-${data.aws_caller_identity.current.account_id}-deploy/*"
+    }
+  ]
+}
+EOF
+
   website {
     index_document = "index.html"
     error_document = "index.html"
@@ -136,7 +153,8 @@ resource "aws_iam_role_policy" "codebuild_policy" {
         "s3:GetObject",
         "s3:GetObjectVersion",
         "s3:GetBucketVersioning",
-        "s3:PutObject"
+        "s3:PutObject",
+        "s3:DeleteObject"
       ],
       "Effect": "Allow",
       "Resource": [
