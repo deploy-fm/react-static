@@ -4,6 +4,17 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 
+# Deployment Location
+resource "aws_s3_bucket" "deployment_bucket" {
+  bucket = "${var.pipeline_name}-${data.aws_caller_identity.current.account_id}-deploy"
+  acl = "public-read"
+
+  website {
+    index_document = "index.html"
+    error_document = "index.html"
+  }
+}
+
 # CodePipeLine Resources
 resource "aws_s3_bucket" "build_artifact_bucket" {
   bucket = "${var.pipeline_name}-${data.aws_caller_identity.current.account_id}-artifact-bucket"
@@ -118,7 +129,7 @@ resource "aws_iam_role_policy" "codebuild_policy" {
 
   policy = <<EOF
 {
-  "Version": 2012-10-17",
+  "Version": "2012-10-17",
   "Statement": [
     {
       "Action": [
@@ -128,7 +139,10 @@ resource "aws_iam_role_policy" "codebuild_policy" {
         "s3:PutObject"
       ],
       "Effect": "Allow",
-      "Resource": "${aws_s3_bucket.build_artifact_bucket.arn}/*"
+      "Resource": [
+        "${aws_s3_bucket.build_artifact_bucket.arn}/*",
+        "${aws_s3_bucket.deployment_bucket.arn}/*"
+      ]
     },
     {
       "Action": [
@@ -146,9 +160,9 @@ resource "aws_iam_role_policy" "codebuild_policy" {
       ],
       "Effect": "Allow",
       "Resource": [
-        "*""
+        "*"
       ]
-    },
+    }
   ]
 }
 EOF
@@ -169,6 +183,11 @@ resource "aws_codebuild_project" "build_project" {
     compute_type = "BUILD_GENERAL1_SMALL"
     image = "aws/codebuild/nodejs:10.14.1"
     type = "LINUX_CONTAINER"
+
+    environment_variable {
+      "name" = "DEPLOY_S3_BUCKET"
+      "value" = "${aws_s3_bucket.deployment_bucket.id}"
+    }
   }
 
   source {
@@ -194,13 +213,16 @@ resource "aws_codepipeline" "codepipeline" {
       name = "Source"
       category = "Source"
       owner = "ThirdParty"
-      provider = "Github"
+      provider = "GitHub"
       version = "1"
       output_artifacts = ["code"]
-    }
 
-    configuration {
-
+      configuration {
+        Owner = "${var.github_org}"
+        Repo = "${var.github_repo}"
+        Branch = "master"
+        OAuthToken = "${var.github_oauth_token}"
+      }
     }
   }
 
@@ -217,7 +239,7 @@ resource "aws_codepipeline" "codepipeline" {
       version = "1"
 
       configuration {
-        ProjectName = "${aws_codebuild_project.build_project}"
+        ProjectName = "${aws_codebuild_project.build_project.name}"
       }
     }
   }

@@ -1,0 +1,16 @@
+version: 0.2
+phases:
+  install:
+    commnads:
+      - echo "install step"
+      - npm install
+  pre_build:
+    commands:
+      - echo "prebuild step"
+  build:
+    commands:
+      - npm run build
+  post_build:
+    commands:
+      - aws s3 sync --delete ./build "s3://${DEPLOY_S3_BUCKET}"
+      - echo "done!"
