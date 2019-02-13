@@ -228,7 +228,7 @@ resource "aws_codepipeline" "codepipeline" {
     name = "Source"
 
     action {
-      name = "Source"
+      name = "GitHub"
       category = "Source"
       owner = "ThirdParty"
       provider = "GitHub"
@@ -245,19 +245,37 @@ resource "aws_codepipeline" "codepipeline" {
   }
 
   stage {
-    name = "DeployToS3"
+    name = "Build"
 
     action {
-      name = "DeployToS3"
+      name = "CodeBuild"
       category = "Build"
       owner = "AWS"
       provider = "CodeBuild"
       input_artifacts = ["code"]
-      output_artifacts = ["deployed"]
+      output_artifacts = ["built"]
       version = "1"
 
       configuration {
         ProjectName = "${aws_codebuild_project.build_project.name}"
+      }
+    }
+  }
+
+  stage {
+    name = "Staging"
+
+    action {
+      name = "DeployApplication"
+      category = "Deploy"
+      owner = "AWS"
+      provider = "S3"
+      input_artifacts = ["code"]
+      version = "1"
+
+      configuration {
+        BucketName = "${aws_s3_bucket.deployment_bucket.id}"
+        Extract = false
       }
     }
   }
