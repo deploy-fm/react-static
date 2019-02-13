@@ -68,10 +68,15 @@ resource "aws_iam_role_policy" "attach_codepipeline_policy" {
         "s3:GetObject",
         "s3:GetObjectVersion",
         "s3:GetBucketVersioning",
-        "s3:PutObject"
+        "s3:PutObject",
+        "s3:ListBucket"
       ],
       "Effect": "Allow",
-      "Resource": "${aws_s3_bucket.build_artifact_bucket.arn}/*"
+      "Resource": [
+        "${aws_s3_bucket.build_artifact_bucket.arn}/*",
+        "${aws_s3_bucket.deployment_bucket.arn}",
+        "${aws_s3_bucket.deployment_bucket.arn}/*"
+      ]
     },
     {
       "Action": [
@@ -270,12 +275,12 @@ resource "aws_codepipeline" "codepipeline" {
       category = "Deploy"
       owner = "AWS"
       provider = "S3"
-      input_artifacts = ["code"]
+      input_artifacts = ["built"]
       version = "1"
 
       configuration {
         BucketName = "${aws_s3_bucket.deployment_bucket.id}"
-        Extract = false
+        Extract = "true"
       }
     }
   }

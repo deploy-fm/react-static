@@ -15,4 +15,5 @@ phases:
       - echo "done!"
 artifacts:
   files:
-    - "build/**/*"
+    - "*"
+  base-directory: "build"
